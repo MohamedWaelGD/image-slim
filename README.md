@@ -8,13 +8,13 @@ browser image APIs, and returns an optimized `Blob` with useful metadata.
 ## Install
 
 ```bash
-npm install @mohamedwael/image-slim
+npm install @mohamedwaelgd/image-slim
 ```
 
 ## Usage
 
 ```ts
-import { optimizeImage } from '@mohamedwael/image-slim';
+import { optimizeImage } from '@mohamedwaelgd/image-slim';
 
 const result = await optimizeImage(file, {
   maxWidth: 1920,
@@ -94,7 +94,7 @@ locally with `npm run test:browser`.
 ImageSlim is consumed like any other browser library from Angular:
 
 ```ts
-import { optimizeImage } from '@mohamedwael/image-slim';
+import { optimizeImage } from '@mohamedwaelgd/image-slim';
 
 async function imageSelected(file: File) {
   const { blob } = await optimizeImage(file, { format: 'webp' });

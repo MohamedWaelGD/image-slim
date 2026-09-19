@@ -54,6 +54,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "npm run build && playwright test",
+    "test:stress": "npm run build && playwright test --config playwright.stress.config.ts",
+    "benchmark": "npm run build && playwright test --config playwright.benchmark.config.ts",
+    "test:integrations": "node scripts/run-consumer-builds.mjs",
     "validate:package": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && publint && npm pack --dry-run",
     "prepublishOnly": "npm run validate:package"
   },

@@ -1,51 +1,5 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
-
-const distPath = resolve('dist');
-const sharedChunk = readdirSync(distPath).find((file) => /^chunk-.*\.js$/.test(file));
-
-if (!sharedChunk) {
-  throw new Error('Could not find the built shared ESM chunk.');
-}
-
-const workerTestFiles = new Map([
-  ['/dist/index.js', readFileSync(resolve(distPath, 'index.js'), 'utf8')],
-  [`/dist/${sharedChunk}`, readFileSync(resolve(distPath, sharedChunk), 'utf8')],
-  [
-    '/dist/worker/image-slim.worker.js',
-    readFileSync(resolve(distPath, 'worker/image-slim.worker.js'), 'utf8'),
-  ],
-]);
-
-async function useBuiltPackage(page: Page): Promise<void> {
-  await page.route('**/*', async (route) => {
-    const url = new URL(route.request().url());
-
-    if (url.hostname !== 'image-slim.test') {
-      await route.abort();
-      return;
-    }
-
-    if (url.pathname === '/index.html') {
-      await route.fulfill({
-        contentType: 'text/html',
-        body: '<!doctype html><html></html>',
-      });
-      return;
-    }
-
-    const body = workerTestFiles.get(url.pathname);
-    if (!body) {
-      await route.abort();
-      return;
-    }
-
-    await route.fulfill({ contentType: 'text/javascript', body });
-  });
-
-  await page.goto('http://image-slim.test/index.html');
-}
+import { expect, test } from '@playwright/test';
+import { useBuiltPackage } from './browser-utils';
 
 test('resizes and encodes an image through the public API', async ({ page }) => {
   await useBuiltPackage(page);

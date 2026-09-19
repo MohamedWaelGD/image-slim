@@ -1,5 +1,5 @@
 import { ImageSlimError } from '../errors/image-slim-error';
-import { optimizeImageOnMainThread } from '../core/optimize-main-thread';
+import { optimizeImageLocally } from '../core/optimize-image-locally';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 
 type WorkerScope = {
@@ -63,7 +63,7 @@ workerScope.onmessage = async ({ data }) => {
       );
     }
 
-    const result = await optimizeImageOnMainThread(data.file, {
+    const result = await optimizeImageLocally(data.file, {
       ...data.options,
       signal: controller.signal,
       processing: 'main-thread',

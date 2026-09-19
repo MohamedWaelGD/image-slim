@@ -24,6 +24,11 @@ export interface ImageOptimizationOptions {
   processing?: ProcessingStrategy;
 }
 
+export interface BatchImageOptimizationOptions extends ImageOptimizationOptions {
+  /** Maximum number of images processed at the same time. Defaults to 2. */
+  concurrency?: number;
+}
+
 export interface ImageDimensions {
   width: number;
   height: number;

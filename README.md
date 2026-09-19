@@ -9,6 +9,7 @@ browser image APIs, and returns an optimized `Blob` with useful metadata.
 
 - [Install](#install)
 - [Usage](#usage)
+- [Batch usage](#batch-usage)
 - [How it works](#how-it-works)
 - [API](#api)
 - [Browser behavior](#browser-behavior)
@@ -17,6 +18,8 @@ browser image APIs, and returns an optimized `Blob` with useful metadata.
 - [React](#react)
 - [Vue](#vue)
 - [Native browser](#native-browser)
+- [Bundler compatibility](#bundler-compatibility)
+- [Performance testing](#performance-testing)
 - [Local package testing](#local-package-testing)
 - [License](#license)
 
@@ -82,6 +85,27 @@ formData.append('file', result.blob, 'image.webp');
 
 [Back to contents](#contents)
 
+## Batch usage
+
+Use `optimizeImages` for a bounded batch. Results preserve the input order, and the default
+concurrency is `2`, which is intentionally conservative for large phone photos.
+
+```ts
+import { optimizeImages } from '@mohamedwaelgd/image-slim';
+
+const results = await optimizeImages(files, {
+  concurrency: 2,
+  processing: 'worker',
+  format: 'webp',
+});
+```
+
+The batch is fail-fast. When one image fails, queued images are not started and active images
+are cancelled. An external `AbortSignal` cancels queued and active work. `concurrency` must be
+a positive integer.
+
+[Back to contents](#contents)
+
 ## API
 
 ```ts
@@ -96,6 +120,10 @@ interface ImageOptimizationOptions {
   backgroundColor?: string;
   signal?: AbortSignal;
   processing?: 'auto' | 'worker' | 'main-thread';
+}
+
+interface BatchImageOptimizationOptions extends ImageOptimizationOptions {
+  concurrency?: number;
 }
 ```
 
@@ -147,9 +175,55 @@ interface OptimizedImageResult {
   to use another CSS color.
 - Unsupported input types, output encoders, invalid options, and unavailable canvas APIs
   throw `ImageSlimError` with a stable `code`.
+- `optimizeImages` limits the number of simultaneous image operations; it does not create a
+  permanent Worker pool. Each active Worker request is cleaned up when it settles.
 
 The package targets modern browsers with Canvas support. Run the Chromium smoke tests
 locally with `npm run test:browser`.
+
+[Back to contents](#contents)
+
+## Bundler compatibility
+
+The browser package uses the standard module Worker pattern and should be consumed through its
+ESM entry point. Production build fixtures cover Angular's esbuild builder, Vite, Webpack 5,
+Next.js/React, and Vue/Vite.
+
+Run the packed-package build matrix with:
+
+```bash
+npm run test:integrations
+```
+
+The integration runner builds the applications under `E:\Projects\demo\test-demos` and checks
+that each output contains an ImageSlim Worker artifact. The application must deploy the emitted
+Worker and its shared chunks together; `processing: 'auto'` can hide a missing Worker by falling
+back to the main thread, so integration checks use `processing: 'worker'`.
+
+[Back to contents](#contents)
+
+## Performance testing
+
+Run the browser benchmark suite with:
+
+```bash
+npm run benchmark
+```
+
+The suite prepares 0.5MP, 2MP, 12MP, and 24MP fixtures from the images in `tests/assets` and
+measures main-thread and Worker processing. It records total time, long tasks, event-loop delay,
+input/output sizes, and browser-reported memory estimates in `benchmark-results/latest.json` and
+`benchmark-results/latest.md`.
+
+Large-image stress tests are opt-in because decoded pixels use substantially more memory than
+compressed file bytes:
+
+```bash
+npm run test:stress
+```
+
+Memory values are diagnostic only. Browser APIs do not consistently expose native bitmap and
+canvas allocations, so timing and memory are not used as strict CI thresholds.
 
 [Back to contents](#contents)
 

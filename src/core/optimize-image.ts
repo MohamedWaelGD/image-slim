@@ -1,4 +1,4 @@
-import { optimizeImageWithValidatedOptions } from './optimize-main-thread';
+import { optimizeImageWithValidatedOptions } from './optimize-image-locally';
 import { isWorkerFailure, optimizeImageInWorker } from '../worker/worker-client';
 import { validateOptions } from './validate-options';
 import type { ImageOptimizationOptions, OptimizedImageResult } from '../types/public';

@@ -13,6 +13,9 @@ browser image APIs, and returns an optimized `Blob` with useful metadata.
 - [API](#api)
 - [Browser behavior](#browser-behavior)
 - [Angular](#angular)
+- [React](#react)
+- [Vue](#vue)
+- [Native browser](#native-browser)
 - [Local package testing](#local-package-testing)
 - [License](#license)
 
@@ -22,20 +25,10 @@ ImageSlim keeps the original decoded image in memory and renders every output at
 from that same source. This makes resizing deterministic and allows the quality search to
 compare output sizes without repeatedly decoding the input.
 
-```mermaid
-flowchart TD
-    A[Blob or File input] --> B[Validate input and options]
-    B --> C[Decode image]
-    C --> D[Calculate dimensions]
-    D --> E[Draw to canvas]
-    E --> F{Output format}
-    F -->|WebP or JPEG| G[Search for highest quality under target size]
-    F -->|PNG| H[Encode once]
-    G --> I[Verify MIME type]
-    H --> I
-    I --> J[Release bitmap or object URL]
-    J --> K[Return optimized Blob and metadata]
-```
+The image is validated, decoded, resized, and drawn to a canvas. WebP and JPEG outputs
+use a quality search to stay within the target size, while PNG is encoded once. The result
+is verified, temporary resources are released, and the optimized `Blob` and metadata are
+returned.
 
 ### Browser processing path
 
@@ -43,18 +36,9 @@ The implementation progressively selects the best browser API available. It pref
 modern APIs but still supports browsers that only provide the traditional image and
 canvas interfaces.
 
-```mermaid
-flowchart LR
-    A[Input Blob] --> B{createImageBitmap available?}
-    B -->|Yes| C[Decode with EXIF orientation]
-    B -->|No| D[Decode with HTMLImageElement]
-    C --> E{OffscreenCanvas available?}
-    D --> E
-    E -->|Yes| F[convertToBlob]
-    E -->|No| G[HTML canvas toBlob]
-    F --> H[Optimized Blob]
-    G --> H
-```
+The browser path prefers `createImageBitmap` for decoding and `OffscreenCanvas` for
+encoding. When either API is unavailable, ImageSlim falls back to `HTMLImageElement` and
+regular HTML canvas APIs.
 
 ### Target-size quality search
 
@@ -62,17 +46,9 @@ For WebP and JPEG, `targetSize` is treated as a maximum byte size. The search ke
 highest quality that fits. If the target is impossible at the minimum quality, the
 smallest attempt is returned and `targetSizeReached` becomes `false`.
 
-```mermaid
-flowchart TD
-    A[Encode at configured quality] --> B{Fits target size?}
-    B -->|Yes| C[Return configured quality]
-    B -->|No| D[Encode at minimum quality 0.4]
-    D --> E{Fits target size?}
-    E -->|No| F[Return minimum-quality attempt]
-    E -->|Yes| G[Binary-search quality]
-    G --> H[Keep highest quality that fits]
-    H --> I[Return optimized Blob]
-```
+For WebP and JPEG, ImageSlim first tries the configured quality. If that exceeds the
+target, it checks the minimum quality and then binary-searches for the highest quality
+that fits. If the target is still impossible, it returns the smallest attempt.
 
 [Back to contents](#contents)
 
@@ -182,6 +158,68 @@ async function imageSelected(file: File) {
   const { blob } = await optimizeImage(file, { format: 'webp' });
   // Send blob with Angular HttpClient and FormData.
 }
+```
+
+## React
+
+ImageSlim can be used from a React file input handler:
+
+```tsx
+import type { ChangeEvent } from 'react';
+import { optimizeImage } from '@mohamedwaelgd/image-slim';
+
+function ImageInput() {
+  async function imageSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const { blob } = await optimizeImage(file, { format: 'webp' });
+    // Upload blob with fetch or your preferred client.
+  }
+
+  return <input type="file" accept="image/*" onChange={imageSelected} />;
+}
+```
+
+## Vue
+
+Use ImageSlim from a Vue change handler:
+
+```vue
+<script setup lang="ts">
+import { optimizeImage } from '@mohamedwaelgd/image-slim';
+
+async function imageSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const { blob } = await optimizeImage(file, { format: 'webp' });
+  // Upload blob with fetch or your preferred client.
+}
+</script>
+
+<template>
+  <input type="file" accept="image/*" @change="imageSelected" />
+</template>
+```
+
+## Native browser
+
+ImageSlim also works with a plain browser file input and no UI framework:
+
+```ts
+import { optimizeImage } from '@mohamedwaelgd/image-slim';
+
+const input = document.querySelector<HTMLInputElement>('#image-input');
+
+input?.addEventListener('change', async () => {
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const { blob } = await optimizeImage(file, { format: 'webp' });
+  // Upload blob with fetch or your preferred client.
+});
 ```
 
 [Back to contents](#contents)

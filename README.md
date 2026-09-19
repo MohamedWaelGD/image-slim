@@ -211,8 +211,11 @@ npm run benchmark
 ```
 
 The suite prepares 0.5MP, 2MP, 12MP, and 24MP fixtures from the images in `tests/assets` and
-measures main-thread and Worker processing. It records total time, long tasks, event-loop delay,
-input/output sizes, and browser-reported memory estimates in `benchmark-results/latest.json` and
+measures main-thread and Worker processing. Each case runs 20 times by default; set
+`BENCHMARK_RUNS` to another integer of at least 10 for a shorter or longer measurement set.
+Reports use median and p95 rather than a single run. Separate batch workloads compare sequential
+processing, uncontrolled `Promise.all`, and bounded concurrency for 1 x 24MP, 3 x 12MP, 5 x 12MP,
+and 10 x 2MP inputs. Results are written to `benchmark-results/latest.json` and
 `benchmark-results/latest.md`.
 
 Large-image stress tests are opt-in because decoded pixels use substantially more memory than
@@ -222,8 +225,10 @@ compressed file bytes:
 npm run test:stress
 ```
 
-Memory values are diagnostic only. Browser APIs do not consistently expose native bitmap and
-canvas allocations, so timing and memory are not used as strict CI thresholds.
+Memory values are diagnostic only and are not peak ImageSlim RAM measurements. Browser APIs do not
+consistently expose native decoder/encoder allocations, ImageBitmap and canvas backing stores, or
+GPU resources. Long-task counts are reported only with explicit observer-support metadata; the
+benchmark waits for observer delivery before recording them.
 
 [Back to contents](#contents)
 

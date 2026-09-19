@@ -6,7 +6,7 @@ export default defineConfig({
   workers: 1,
   forbidOnly: true,
   reporter: 'list',
-  timeout: 600_000,
+  timeout: 1_800_000,
   use: {
     ...devices['Desktop Chrome'],
     headless: true,

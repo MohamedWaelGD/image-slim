@@ -3,6 +3,14 @@ import { ImageSlimError } from '../errors/image-slim-error';
 import type { ImageFormat, ImageDimensions } from '../types/public';
 import type { DecodedImageSource } from './decode-image';
 
+export interface PreparedImageRenderer {
+  encode: (quality: number) => Promise<Blob>;
+  dispose: () => void;
+}
+
+type Canvas = HTMLCanvasElement | OffscreenCanvas;
+type CanvasContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
 function getMimeType(format: ImageFormat): string {
   return `image/${format}`;
 }
@@ -19,7 +27,7 @@ function verifyEncodedType(blob: Blob, expectedType: string): Blob {
 }
 
 function drawImage(
-  context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  context: CanvasContext,
   source: DecodedImageSource,
   dimensions: ImageDimensions,
   format: ImageFormat,
@@ -38,49 +46,75 @@ function drawImage(
   }
 }
 
-async function renderWithOffscreenCanvas(
+function releaseCanvas(canvas: Canvas): void {
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
+function prepareWithOffscreenCanvas(
   source: DecodedImageSource,
   dimensions: ImageDimensions,
   format: ImageFormat,
-  quality: number,
   backgroundColor: string,
-): Promise<Blob | undefined> {
+): PreparedImageRenderer | undefined {
   if (!supportsOffscreenCanvas()) {
     return undefined;
   }
 
-  const canvas = new OffscreenCanvas(dimensions.width, dimensions.height);
-  const context = canvas.getContext('2d');
-
-  if (!context) {
+  let canvas: OffscreenCanvas;
+  try {
+    canvas = new OffscreenCanvas(dimensions.width, dimensions.height);
+  } catch {
     return undefined;
   }
 
-  drawImage(context, source, dimensions, format, backgroundColor);
+  let context: OffscreenCanvasRenderingContext2D | null;
+  try {
+    context = canvas.getContext('2d');
+  } catch {
+    releaseCanvas(canvas);
+    return undefined;
+  }
+
+  if (!context || typeof canvas.convertToBlob !== 'function') {
+    releaseCanvas(canvas);
+    return undefined;
+  }
 
   try {
-    return verifyEncodedType(
-      await canvas.convertToBlob({ type: getMimeType(format), quality }),
-      getMimeType(format),
-    );
+    drawImage(context, source, dimensions, format, backgroundColor);
   } catch (cause) {
-    if (cause instanceof ImageSlimError) {
-      throw cause;
-    }
-
-    throw new ImageSlimError('ENCODE_FAILED', 'The image could not be encoded.', {
-      cause,
-    });
+    releaseCanvas(canvas);
+    throw cause;
   }
+
+  return {
+    encode: async (quality) => {
+      try {
+        return verifyEncodedType(
+          await canvas.convertToBlob({ type: getMimeType(format), quality }),
+          getMimeType(format),
+        );
+      } catch (cause) {
+        if (cause instanceof ImageSlimError) {
+          throw cause;
+        }
+
+        throw new ImageSlimError('ENCODE_FAILED', 'The image could not be encoded.', {
+          cause,
+        });
+      }
+    },
+    dispose: () => releaseCanvas(canvas),
+  };
 }
 
-async function renderWithDomCanvas(
+function prepareWithDomCanvas(
   source: DecodedImageSource,
   dimensions: ImageDimensions,
   format: ImageFormat,
-  quality: number,
   backgroundColor: string,
-): Promise<Blob> {
+): PreparedImageRenderer {
   if (!supportsDomCanvas()) {
     throw new ImageSlimError(
       'CANVAS_UNAVAILABLE',
@@ -88,59 +122,89 @@ async function renderWithDomCanvas(
     );
   }
 
-  const canvas = document.createElement('canvas');
-  canvas.width = dimensions.width;
-  canvas.height = dimensions.height;
-  const context = canvas.getContext('2d');
+  let canvas: HTMLCanvasElement;
+  try {
+    canvas = document.createElement('canvas');
+    canvas.width = dimensions.width;
+    canvas.height = dimensions.height;
+  } catch (cause) {
+    throw new ImageSlimError('CANVAS_UNAVAILABLE', 'Could not create a canvas.', {
+      cause,
+    });
+  }
 
-  if (!context) {
+  let context: CanvasRenderingContext2D | null;
+  try {
+    context = canvas.getContext('2d');
+  } catch (cause) {
+    releaseCanvas(canvas);
     throw new ImageSlimError(
       'CANVAS_UNAVAILABLE',
       'Could not create a 2D canvas context.',
+      {
+        cause,
+      },
     );
   }
 
-  drawImage(context, source, dimensions, format, backgroundColor);
-
-  return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(
-            new ImageSlimError('ENCODE_FAILED', 'The canvas returned no encoded image.'),
-          );
-          return;
-        }
-
-        try {
-          resolve(verifyEncodedType(blob, getMimeType(format)));
-        } catch (error) {
-          reject(error);
-        }
-      },
-      getMimeType(format),
-      quality,
+  if (!context || typeof canvas.toBlob !== 'function') {
+    releaseCanvas(canvas);
+    throw new ImageSlimError(
+      'CANVAS_UNAVAILABLE',
+      'Could not create a usable 2D canvas.',
     );
-  });
+  }
+
+  try {
+    drawImage(context, source, dimensions, format, backgroundColor);
+  } catch (cause) {
+    releaseCanvas(canvas);
+    throw cause;
+  }
+
+  return {
+    encode: (quality) =>
+      new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(
+                new ImageSlimError(
+                  'ENCODE_FAILED',
+                  'The canvas returned no encoded image.',
+                ),
+              );
+              return;
+            }
+
+            try {
+              resolve(verifyEncodedType(blob, getMimeType(format)));
+            } catch (error) {
+              reject(error);
+            }
+          },
+          getMimeType(format),
+          quality,
+        );
+      }),
+    dispose: () => releaseCanvas(canvas),
+  };
 }
 
-export async function renderImage(
+export function prepareImageRenderer(
   source: DecodedImageSource,
   dimensions: ImageDimensions,
   format: ImageFormat,
-  quality: number,
   backgroundColor: string,
-): Promise<Blob> {
-  const offscreenBlob = await renderWithOffscreenCanvas(
+): PreparedImageRenderer {
+  const offscreenRenderer = prepareWithOffscreenCanvas(
     source,
     dimensions,
     format,
-    quality,
     backgroundColor,
   );
 
   return (
-    offscreenBlob ??
-    renderWithDomCanvas(source, dimensions, format, quality, backgroundColor)
+    offscreenRenderer ?? prepareWithDomCanvas(source, dimensions, format, backgroundColor)
   );
 }

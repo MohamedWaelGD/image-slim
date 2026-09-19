@@ -1,6 +1,10 @@
 import { DEFAULT_OPTIONS, SUPPORTED_INPUT_TYPES } from '../constants';
 import { ImageSlimError } from '../errors/image-slim-error';
-import type { ImageFormat, ImageOptimizationOptions } from '../types/public';
+import type {
+  ImageFormat,
+  ImageOptimizationOptions,
+  ProcessingStrategy,
+} from '../types/public';
 
 export interface ValidatedOptions {
   maxWidth: number;
@@ -11,6 +15,8 @@ export interface ValidatedOptions {
   maxInputSize: number;
   allowUpscale: boolean;
   backgroundColor: string;
+  signal?: AbortSignal;
+  processing: ProcessingStrategy;
 }
 
 function isPositiveFiniteNumber(value: unknown): value is number {
@@ -89,6 +95,24 @@ export function validateOptions(options: ImageOptimizationOptions): ValidatedOpt
     throw new ImageSlimError(
       'INVALID_OPTIONS',
       'backgroundColor must be a non-empty string.',
+    );
+  }
+
+  if (
+    config.signal !== undefined &&
+    (typeof config.signal !== 'object' ||
+      config.signal === null ||
+      typeof config.signal.aborted !== 'boolean' ||
+      typeof config.signal.addEventListener !== 'function' ||
+      typeof config.signal.removeEventListener !== 'function')
+  ) {
+    throw new ImageSlimError('INVALID_OPTIONS', 'signal must be an AbortSignal.');
+  }
+
+  if (!['auto', 'worker', 'main-thread'].includes(config.processing)) {
+    throw new ImageSlimError(
+      'INVALID_OPTIONS',
+      `Unsupported processing strategy: ${config.processing}.`,
     );
   }
 

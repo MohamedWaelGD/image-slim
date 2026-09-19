@@ -8,6 +8,7 @@ export type {
   OptimizedImageMetadata,
   OptimizedImageResult,
   OriginalImageMetadata,
+  ProcessingStrategy,
 } from './types/public';
 
 export type { ImageSlimErrorCode } from './errors/image-slim-error';

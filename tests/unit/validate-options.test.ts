@@ -13,6 +13,7 @@ describe('validateOptions', () => {
       maxInputSize: 15_000_000,
       allowUpscale: false,
       backgroundColor: '#ffffff',
+      processing: 'auto',
     });
   });
 
@@ -23,6 +24,16 @@ describe('validateOptions', () => {
 
   it('rejects non-integer dimensions', () => {
     expect(() => validateOptions({ maxWidth: 10.5 })).toThrow(/integers/);
+  });
+
+  it('rejects invalid abort signals', () => {
+    expect(() => validateOptions({ signal: {} as AbortSignal })).toThrow(/signal/);
+  });
+
+  it('rejects invalid processing strategies', () => {
+    expect(() => validateOptions({ processing: 'invalid' as 'auto' })).toThrow(
+      /processing strategy/,
+    );
   });
 });
 

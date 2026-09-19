@@ -1,4 +1,5 @@
 export type ImageFormat = 'webp' | 'jpeg' | 'png';
+export type ProcessingStrategy = 'auto' | 'worker' | 'main-thread';
 
 export interface ImageOptimizationOptions {
   /** Maximum output width in pixels. Defaults to 1920. */
@@ -17,6 +18,10 @@ export interface ImageOptimizationOptions {
   allowUpscale?: boolean;
   /** Background used when converting transparent pixels to JPEG. Defaults to white. */
   backgroundColor?: string;
+  /** Abort signal for cooperative cancellation. */
+  signal?: AbortSignal;
+  /** Processing location. Defaults to auto. */
+  processing?: ProcessingStrategy;
 }
 
 export interface ImageDimensions {

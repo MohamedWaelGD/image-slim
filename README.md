@@ -12,6 +12,7 @@ browser image APIs, and returns an optimized `Blob` with useful metadata.
 - [How it works](#how-it-works)
 - [API](#api)
 - [Browser behavior](#browser-behavior)
+- [Cancellation](#cancellation)
 - [Angular](#angular)
 - [React](#react)
 - [Vue](#vue)
@@ -21,14 +22,14 @@ browser image APIs, and returns an optimized `Blob` with useful metadata.
 
 ## How it works
 
-ImageSlim keeps the original decoded image in memory and renders every output attempt
-from that same source. This makes resizing deterministic and allows the quality search to
-compare output sizes without repeatedly decoding the input.
+ImageSlim keeps the original decoded image in memory and prepares one resized canvas for
+the output. Every quality attempt is encoded from that same canvas, which avoids repeating
+the resize and draw work while the quality search compares output sizes.
 
-The image is validated, decoded, resized, and drawn to a canvas. WebP and JPEG outputs
-use a quality search to stay within the target size, while PNG is encoded once. The result
-is verified, temporary resources are released, and the optimized `Blob` and metadata are
-returned.
+The image is validated and decoded once, then resized and drawn to a canvas once. WebP and
+JPEG outputs use a quality search that encodes the prepared canvas repeatedly, while PNG
+is encoded once. The result is verified, temporary resources are released, and the
+optimized `Blob` and metadata are returned.
 
 ### Browser processing path
 
@@ -36,9 +37,9 @@ The implementation progressively selects the best browser API available. It pref
 modern APIs but still supports browsers that only provide the traditional image and
 canvas interfaces.
 
-The browser path prefers `createImageBitmap` for decoding and `OffscreenCanvas` for
-encoding. When either API is unavailable, ImageSlim falls back to `HTMLImageElement` and
-regular HTML canvas APIs.
+The browser path prefers `createImageBitmap` for decoding and a usable `OffscreenCanvas`
+for rendering. When those APIs are unavailable or cannot be initialized, ImageSlim falls
+back to `HTMLImageElement` and regular HTML canvas APIs.
 
 ### Target-size quality search
 
@@ -93,12 +94,14 @@ interface ImageOptimizationOptions {
   maxInputSize?: number;
   allowUpscale?: boolean;
   backgroundColor?: string;
+  signal?: AbortSignal;
+  processing?: 'auto' | 'worker' | 'main-thread';
 }
 ```
 
-Defaults are `1920 x 1920`, WebP, quality `0.82`, a `1,000,000` byte target, and a
-`15,000,000` byte maximum input size. Images are not enlarged unless `allowUpscale` is
-set to `true`.
+Defaults are `1920 x 1920`, WebP, quality `0.82`, a `1,000,000` byte target, a
+`15,000,000` byte maximum input size, and automatic processing strategy selection. Images
+are not enlarged unless `allowUpscale` is set to `true`.
 
 The result includes original and optimized dimensions, sizes, MIME types, and the final
 quality. If the target cannot be reached at the minimum quality, ImageSlim returns the
@@ -133,10 +136,13 @@ interface OptimizedImageResult {
 - JPEG, PNG, and WebP inputs are accepted.
 - WebP, JPEG, and PNG outputs are supported when the browser encoder supports them.
 - `createImageBitmap` is preferred, with an HTML image fallback.
-- `OffscreenCanvas` is preferred, with regular canvas fallback.
+- `OffscreenCanvas` is preferred when it can be initialized, with regular canvas fallback.
+- `OffscreenCanvas` runs on the calling thread; it does not automatically create a worker.
+- `processing: 'auto'` uses the packaged module worker when available and falls back to the
+  main thread; use `'worker'` to require a worker or `'main-thread'` to opt out.
 - EXIF orientation is requested through `createImageBitmap`.
 - Aspect ratio is preserved and images are not enlarged by default.
-- Quality search encodes every attempt from the same decoded source.
+- Quality search encodes every attempt from the same prepared canvas.
 - Transparent pixels are composited onto white when producing JPEG. Set `backgroundColor`
   to use another CSS color.
 - Unsupported input types, output encoders, invalid options, and unavailable canvas APIs
@@ -144,6 +150,38 @@ interface OptimizedImageResult {
 
 The package targets modern browsers with Canvas support. Run the Chromium smoke tests
 locally with `npm run test:browser`.
+
+[Back to contents](#contents)
+
+## Cancellation
+
+Pass an `AbortSignal` to stop optimization before the next processing step or quality
+attempt:
+
+```ts
+import { ImageSlimError, optimizeImage } from '@mohamedwaelgd/image-slim';
+
+const controller = new AbortController();
+
+const pending = optimizeImage(file, {
+  format: 'webp',
+  signal: controller.signal,
+});
+
+controller.abort();
+
+try {
+  await pending;
+} catch (error) {
+  if (error instanceof ImageSlimError && error.code === 'ABORTED') {
+    // The operation was cancelled.
+  }
+}
+```
+
+Cancellation is cooperative. An encode already in progress may finish, but ImageSlim
+will not start another attempt or return a result. Decoded images, canvases, and object
+URLs are released when cancellation occurs.
 
 [Back to contents](#contents)
 

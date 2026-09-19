@@ -10,46 +10,20 @@ export interface DecodedImage {
   close: () => void;
 }
 
-export async function decodeImage(
+function supportsHtmlImageDecoder(): boolean {
+  return typeof Image !== 'undefined' && typeof URL !== 'undefined';
+}
+
+async function decodeWithHtmlImage(
   blob: Blob,
   signal?: AbortSignal,
+  cause?: unknown,
 ): Promise<DecodedImage> {
-  throwIfAborted(signal);
-
-  if (typeof createImageBitmap === 'function') {
-    try {
-      const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
-
-      if (signal?.aborted) {
-        bitmap.close();
-        throwIfAborted(signal);
-      }
-
-      return {
-        source: bitmap,
-        width: bitmap.width,
-        height: bitmap.height,
-        close: () => bitmap.close(),
-      };
-    } catch (cause) {
-      if (cause instanceof ImageSlimError) {
-        throw cause;
-      }
-
-      if (signal?.aborted) {
-        throwIfAborted(signal);
-      }
-
-      throw new ImageSlimError('DECODE_FAILED', 'The image could not be decoded.', {
-        cause,
-      });
-    }
-  }
-
-  if (typeof Image === 'undefined' || typeof URL === 'undefined') {
+  if (!supportsHtmlImageDecoder()) {
     throw new ImageSlimError(
       'DECODE_FAILED',
       'This environment has neither createImageBitmap nor an HTML image decoder.',
+      { cause },
     );
   }
 
@@ -100,15 +74,52 @@ export async function decodeImage(
       height: image.naturalHeight,
       close: () => URL.revokeObjectURL(objectUrl),
     };
-  } catch (cause) {
+  } catch (error) {
     URL.revokeObjectURL(objectUrl);
 
-    if (cause instanceof ImageSlimError) {
-      throw cause;
+    if (error instanceof ImageSlimError) {
+      throw error;
     }
 
     throw new ImageSlimError('DECODE_FAILED', 'The image could not be decoded.', {
-      cause,
+      cause: error,
     });
   }
+}
+
+export async function decodeImage(
+  blob: Blob,
+  signal?: AbortSignal,
+): Promise<DecodedImage> {
+  throwIfAborted(signal);
+
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+
+      if (signal?.aborted) {
+        bitmap.close();
+        throwIfAborted(signal);
+      }
+
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        close: () => bitmap.close(),
+      };
+    } catch (cause) {
+      if (cause instanceof ImageSlimError) {
+        throw cause;
+      }
+
+      if (signal?.aborted) {
+        throwIfAborted(signal);
+      }
+
+      return await decodeWithHtmlImage(blob, signal, cause);
+    }
+  }
+
+  return await decodeWithHtmlImage(blob, signal);
 }

@@ -26,6 +26,10 @@ function serializeOptions(options: ValidatedOptions): WorkerOptimizationOptions 
     quality: options.quality,
     targetSize: options.targetSize,
     maxInputSize: options.maxInputSize,
+    maxInputWidth: options.maxInputWidth,
+    maxInputHeight: options.maxInputHeight,
+    maxInputPixels: options.maxInputPixels,
+    maxOutputPixels: options.maxOutputPixels,
     allowUpscale: options.allowUpscale,
     backgroundColor: options.backgroundColor,
   };

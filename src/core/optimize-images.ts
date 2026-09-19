@@ -1,9 +1,10 @@
 import { createAbortError } from './cancellation';
 import { optimizeImage } from './optimize-image';
-import { validateOptions } from './validate-options';
+import { isBlobLike, validateOptions } from './validate-options';
 import { ImageSlimError } from '../errors/image-slim-error';
 import type {
   BatchImageOptimizationOptions,
+  BatchProgress,
   ImageOptimizationOptions,
   OptimizedImageResult,
 } from '../types/public';
@@ -33,12 +34,27 @@ export async function optimizeImages(
   files: readonly Blob[],
   options: BatchImageOptimizationOptions = {},
 ): Promise<OptimizedImageResult[]> {
-  const { concurrency = DEFAULT_BATCH_CONCURRENCY, ...imageOptions } = options;
+  const {
+    concurrency = DEFAULT_BATCH_CONCURRENCY,
+    onProgress,
+    ...imageOptions
+  } = options;
   validateConcurrency(concurrency);
+
+  if (onProgress !== undefined && typeof onProgress !== 'function') {
+    throw new ImageSlimError('INVALID_OPTIONS', 'onProgress must be a function.');
+  }
+
   validateOptions(imageOptions as ImageOptimizationOptions);
 
   if (files.length === 0) {
     return [];
+  }
+
+  for (const file of files) {
+    if (!isBlobLike(file)) {
+      throw new ImageSlimError('INVALID_INPUT', 'Input must be a Blob.');
+    }
   }
 
   const controller = createBatchController(imageOptions.signal);
@@ -96,7 +112,7 @@ export async function optimizeImages(
         nextIndex += 1;
         const file = files[index];
 
-        if (file === undefined) {
+        if (!isBlobLike(file)) {
           fail(new ImageSlimError('INVALID_INPUT', 'Input must be a Blob.'));
           return;
         }
@@ -107,6 +123,22 @@ export async function optimizeImages(
             signal: controller.signal,
           });
           completed += 1;
+
+          if (onProgress) {
+            const progress: BatchProgress = {
+              completed,
+              total: files.length,
+              index,
+            };
+
+            try {
+              onProgress(progress);
+            } catch (error) {
+              fail(error);
+              return;
+            }
+          }
+
           complete();
         } catch (error) {
           fail(error);

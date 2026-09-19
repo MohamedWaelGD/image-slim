@@ -13,6 +13,10 @@ export interface ValidatedOptions {
   quality: number;
   targetSize: number;
   maxInputSize: number;
+  maxInputWidth: number;
+  maxInputHeight: number;
+  maxInputPixels: number;
+  maxOutputPixels: number;
   allowUpscale: boolean;
   backgroundColor: string;
   signal?: AbortSignal;
@@ -32,8 +36,22 @@ function assertPositiveOption(name: string, value: number): void {
   }
 }
 
+export function isBlobLike(value: unknown): value is { size: number; type: string } {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as { size?: unknown; type?: unknown };
+
+  return (
+    typeof candidate.size === 'number' &&
+    Number.isFinite(candidate.size) &&
+    typeof candidate.type === 'string'
+  );
+}
+
 export function validateInput(blob: Blob, maxInputSize: number): void {
-  if (!blob || typeof blob !== 'object' || typeof blob.size !== 'number') {
+  if (!isBlobLike(blob)) {
     throw new ImageSlimError('INVALID_INPUT', 'Input must be a Blob.');
   }
 
@@ -62,11 +80,27 @@ export function validateOptions(options: ImageOptimizationOptions): ValidatedOpt
   assertPositiveOption('maxHeight', config.maxHeight);
   assertPositiveOption('targetSize', config.targetSize);
   assertPositiveOption('maxInputSize', config.maxInputSize);
+  assertPositiveOption('maxInputWidth', config.maxInputWidth);
+  assertPositiveOption('maxInputHeight', config.maxInputHeight);
+  assertPositiveOption('maxInputPixels', config.maxInputPixels);
+  assertPositiveOption('maxOutputPixels', config.maxOutputPixels);
 
   if (!Number.isInteger(config.maxWidth) || !Number.isInteger(config.maxHeight)) {
     throw new ImageSlimError(
       'INVALID_OPTIONS',
       'maxWidth and maxHeight must be integers.',
+    );
+  }
+
+  if (
+    !Number.isInteger(config.maxInputWidth) ||
+    !Number.isInteger(config.maxInputHeight) ||
+    !Number.isInteger(config.maxInputPixels) ||
+    !Number.isInteger(config.maxOutputPixels)
+  ) {
+    throw new ImageSlimError(
+      'INVALID_OPTIONS',
+      'maxInputWidth, maxInputHeight, maxInputPixels, and maxOutputPixels must be integers.',
     );
   }
 

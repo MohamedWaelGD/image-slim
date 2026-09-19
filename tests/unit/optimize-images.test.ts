@@ -120,6 +120,72 @@ describe('optimizeImages', () => {
     expect(controllers.every((signal) => signal.aborted)).toBe(true);
   });
 
+  it('reports progress once per successful image in completion order', async () => {
+    mockOptimizeImage.mockImplementation(async (file: Blob) => {
+      await new Promise((resolve) => setTimeout(resolve, file.size === 1 ? 20 : 1));
+      return resultFor(file);
+    });
+
+    const files = [
+      new Blob(['a'], { type: 'image/jpeg' }),
+      new Blob(['bb'], { type: 'image/jpeg' }),
+      new Blob(['ccc'], { type: 'image/jpeg' }),
+    ];
+    const events: number[] = [];
+
+    const results = await optimizeImages(files, {
+      ...defaultOptions,
+      concurrency: 2,
+      onProgress: (progress) => {
+        events.push(progress.index);
+        expect(progress.total).toBe(3);
+        expect(progress.completed).toBe(events.length);
+      },
+    });
+
+    expect(events).toEqual([1, 2, 0]);
+    expect(results.map((result) => result.blob.size)).toEqual([1, 2, 3]);
+  });
+
+  it('fails the batch when the progress callback throws', async () => {
+    mockOptimizeImage.mockImplementation(async (file: Blob) => resultFor(file));
+    const failure = new Error('progress listener failed');
+
+    await expect(
+      optimizeImages(
+        [
+          new Blob(['a'], { type: 'image/jpeg' }),
+          new Blob(['bb'], { type: 'image/jpeg' }),
+        ],
+        {
+          ...defaultOptions,
+          concurrency: 1,
+          onProgress: () => {
+            throw failure;
+          },
+        },
+      ),
+    ).rejects.toBe(failure);
+  });
+
+  it('rejects a non-function onProgress value', async () => {
+    await expect(
+      optimizeImages([new Blob(['a'], { type: 'image/jpeg' })], {
+        ...defaultOptions,
+        onProgress: 'nope' as unknown as () => void,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+  });
+
+  it('validates every entry before starting work', async () => {
+    const files = [new Blob(['a'], { type: 'image/jpeg' }), undefined as unknown as Blob];
+
+    await expect(
+      optimizeImages(files, { ...defaultOptions, concurrency: 1 }),
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    expect(mockOptimizeImage).not.toHaveBeenCalled();
+  });
+
   it('cancels active and queued work when the caller aborts', async () => {
     const controller = new AbortController();
     let started = 0;

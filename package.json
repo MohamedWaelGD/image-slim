@@ -1,13 +1,21 @@
 {
   "name": "@mohamedwaelgd/image-slim",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Framework-agnostic browser image resizing and compression.",
   "keywords": [
     "image",
-    "optimizer",
-    "compression",
-    "resize",
+    "image-compression",
+    "image-optimization",
+    "image-resize",
+    "browser-image",
+    "client-side",
+    "webp",
+    "jpeg",
+    "png",
     "browser",
+    "web-worker",
+    "offscreen-canvas",
+    "canvas",
     "typescript"
   ],
   "license": "MIT",
@@ -42,9 +50,6 @@
     "LICENSE"
   ],
   "sideEffects": false,
-  "engines": {
-    "node": ">=20"
-  },
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -56,8 +61,8 @@
     "test:browser": "npm run build && playwright test",
     "test:stress": "npm run build && playwright test --config playwright.stress.config.ts",
     "benchmark": "npm run build && playwright test --config playwright.benchmark.config.ts",
-    "test:integrations": "node scripts/run-consumer-builds.mjs",
-    "validate:package": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && publint && npm pack --dry-run",
+    "verify:package": "node scripts/verify-package-contract.mjs",
+    "validate:package": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run verify:package && publint && npm pack --dry-run",
     "prepublishOnly": "npm run validate:package"
   },
   "devDependencies": {

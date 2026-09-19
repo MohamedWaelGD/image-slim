@@ -14,6 +14,14 @@ export interface ImageOptimizationOptions {
   targetSize?: number;
   /** Maximum accepted input size in bytes. Defaults to 15,000,000. */
   maxInputSize?: number;
+  /** Maximum accepted input width in pixels. Defaults to 16,384. */
+  maxInputWidth?: number;
+  /** Maximum accepted input height in pixels. Defaults to 16,384. */
+  maxInputHeight?: number;
+  /** Maximum accepted decoded input pixels. Defaults to 40,000,000. */
+  maxInputPixels?: number;
+  /** Maximum output pixels before encoding. Defaults to 40,000,000. */
+  maxOutputPixels?: number;
   /** Permit output dimensions larger than the decoded input. Defaults to false. */
   allowUpscale?: boolean;
   /** Background used when converting transparent pixels to JPEG. Defaults to white. */
@@ -24,9 +32,20 @@ export interface ImageOptimizationOptions {
   processing?: ProcessingStrategy;
 }
 
+export interface BatchProgress {
+  /** Number of images that have completed successfully so far. */
+  completed: number;
+  /** Total number of images in the batch. */
+  total: number;
+  /** Index of the completed image in the original input array. */
+  index: number;
+}
+
 export interface BatchImageOptimizationOptions extends ImageOptimizationOptions {
   /** Maximum number of images processed at the same time. Defaults to 2. */
   concurrency?: number;
+  /** Called after each image completes. A thrown error fails the batch. */
+  onProgress?: (progress: BatchProgress) => void;
 }
 
 export interface ImageDimensions {

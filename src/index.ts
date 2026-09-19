@@ -7,6 +7,7 @@ export type {
   ImageFormat,
   ImageOptimizationOptions,
   BatchImageOptimizationOptions,
+  BatchProgress,
   OptimizedImageMetadata,
   OptimizedImageResult,
   OriginalImageMetadata,

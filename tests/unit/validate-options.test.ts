@@ -11,6 +11,10 @@ describe('validateOptions', () => {
       quality: 0.82,
       targetSize: 1_000_000,
       maxInputSize: 15_000_000,
+      maxInputWidth: 16_384,
+      maxInputHeight: 16_384,
+      maxInputPixels: 40_000_000,
+      maxOutputPixels: 40_000_000,
       allowUpscale: false,
       backgroundColor: '#ffffff',
       processing: 'auto',
@@ -24,6 +28,14 @@ describe('validateOptions', () => {
 
   it('rejects non-integer dimensions', () => {
     expect(() => validateOptions({ maxWidth: 10.5 })).toThrow(/integers/);
+  });
+
+  it('rejects invalid input limit values', () => {
+    expect(() => validateOptions({ maxInputPixels: 0 })).toThrow(/maxInputPixels/);
+    expect(() => validateOptions({ maxInputWidth: 10.5 })).toThrow(/integers/);
+    expect(() => validateOptions({ maxOutputPixels: Number.NaN })).toThrow(
+      /maxOutputPixels/,
+    );
   });
 
   it('rejects invalid abort signals', () => {
@@ -56,5 +68,16 @@ describe('validateInput', () => {
     expect(() => validateInput(new Blob(['12345'], { type: 'image/png' }), 4)).toThrow(
       /exceeds/,
     );
+  });
+
+  it('rejects malformed duck-typed input with a stable error code', () => {
+    for (const malformed of [{ size: 10 }, { size: 10, type: 5 }, null, 'image']) {
+      try {
+        validateInput(malformed as unknown as Blob, 100);
+        throw new Error('Expected validation to fail.');
+      } catch (error) {
+        expect(error).toMatchObject({ code: 'INVALID_INPUT' });
+      }
+    }
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@mohamedwaelgd/image-slim",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Framework-agnostic browser image resizing and compression.",
   "keywords": [
     "image",
